@@ -1,0 +1,17 @@
+#Virtual Environment
+.venv/
+
+#Python
+__pycache__/
+*.pyc
+
+#Jupyter Notebook
+.ipynb_checkpoints/
+
+#data - data is too large to be stored in the repo, and can be downloaded from the original source
+data/
+
+#Visual Studio Code
+.vscode/
+Thumbs.db
+desktop.ini
