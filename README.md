@@ -1,6 +1,7 @@
 # Autodamage
 ### Classification of cars and car damage to estimate costs of repairs
 ### By Christian Meraz-Santiago
+###### Note: I do not include the data folder in the repo, all data links are provided and can be downloaded from the original source.
 The end goal of this project is to have a deployable where a user can provide an image of a damage on a vehicle and get a prediction of the cost of repairs and be provided with general information about what is damaged, information about the particular vehicle, and locations to get it fixed nearby. Many mechanics/body-shops are infamously known to upcharge unknowing customers, so being able to easily get an estimate of what the repairs should cost along with helpful information should give the user a good idea of what they are in for.
 
 ### Planned Pipeline
