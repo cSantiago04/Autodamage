@@ -5,7 +5,7 @@
 ###### Model checkpoints are not included as they are reproducible.
 The end goal of this project is to have a deployable where a user can provide an image of a damage on a vehicle and get a prediction of the cost of repairs and be provided with general information about what is damaged, information about the particular vehicle, and locations to get it fixed nearby. Many mechanics/body-shops are infamously known to upcharge unknowing customers, so being able to easily get an estimate of what the repairs should cost along with helpful information should give the user a good idea of what they are in for.
 
-### Planned Pipeline
+## Planned Pipeline
 
 #### 1. Car Classification
 Fine-tune a vision model on labeled images.
@@ -23,8 +23,21 @@ Once I have structured data (Car ID + damage list + cost estimate), use an LLM t
 #### 5. Repair Shop Recommendation
 Use an API such as Google Places or Yelp filtered by location to find nearby body-shops/mechanics for actual repairs that would closely 
 
-## Car Classification
+## Stage 1: Car Classification
+Classifies the make/model/year of a car from an image using a ResNet-50 model.
 ### Dataset being used for car classification: 
-#### https://www.kaggle.com/datasets/eduardo4jesus/stanford-cars-dataset
+https://www.kaggle.com/datasets/eduardo4jesus/stanford-cars-dataset
 
-The first step for this project is car classification. 
+### Approach
+-Images are cropped by their bounding box before resizing  
+-Split: 70% Train, 15% val, 15% test, stratified by class for balanced representations across all 196 classes  
+-Model: ResNet-50 pretrained on ImageNet, fine-tuned with swapped final layer for 196 classes  
+-Data Augmentation (Random horizontal flip, rotation, color jitter) Applied to training set  
+-Best checkpoint saved based on validation accuracy, not just the final epoch
+
+### Results
+No augmentation, 10 epochs |79.62% test accuracy|  
+(Best checkpoint) With augmentation, 20 epochs |84.37% test accuracy|
+
+### Error Analysis
+Confusion matrix shows misclassifications are concentrated on similar versions of the same car, such as different body styles (coupe vs. convertible), trims, or adjacent model years.
