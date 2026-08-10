@@ -23,6 +23,30 @@ Once I have structured data (Car ID + damage list + cost estimate), use an LLM t
 #### 5. Repair Shop Recommendation
 Use an API such as Google Places or Yelp filtered by location to find nearby body-shops/mechanics for actual repairs that would closely 
 
+## Current Repository Structure
+```
+Autodamage/
+├── data/                                  # Raw datasets (gitignored, not tracked)
+│   ├── carclassificationdataset1/         # Stanford Cars
+│   ├── damagedetectiondataset1/           # COCO Car Damage Detection (Scrapped)
+|   └── CarDD_release                      # Huge dataset for damage detection
+├── models/                                # Trained checkpoints (gitignored, not tracked)
+│   ├── classifier/
+│   └── damage_detector/
+├── notebooks/                             # Exploration and prototyping
+│   ├── carclassification.ipynb
+│   └── damagedetection.ipynb
+├── src/
+│   ├── carclassification/
+│   │   ├── data_loader.py                 # Stanford Cars parsing + DataLoaders
+│   │   ├── train.py                       # ResNet-50 training loop
+│   │   └── evaluate.py                    # Test set evaluation + confusion matrix
+│   └── damagedetection/
+├── .gitignore
+├── README.md
+└── requirements.txt
+```
+
 ## Stage 1: Car Classification
 Classifies the make/model/year of a car from an image using a ResNet-50 model.
 ### Dataset being used for car classification: 
@@ -41,3 +65,19 @@ No augmentation, 10 epochs |79.62% test accuracy|
 
 ### Error Analysis
 Confusion matrix shows misclassifications are concentrated on similar versions of the same car, such as different body styles (coupe vs. convertible), trims, or adjacent model years.
+
+## Stage 2: Damage Detection
+### Dataset being used for damage detection:
+https://drive.google.com/file/d/1bbyqVCKZX5Ur5Zg-uKj0jD0maWAVeOLx/view
+
+Citation:  
+@article{wang2023cardd,  
+  title={CarDD: A New Dataset for Vision-Based Car Damage Detection},  
+  author={Wang, Xinkuang and Li, Wenjing and Wu, Zhongcheng},  
+  journal={IEEE Transactions on Intelligent Transportation Systems},  
+  volume={24},  
+  number={7},  
+  pages={7202--7214},  
+  year={2023},  
+  doi={10.1109/TITS.2023.3258480}
+}
