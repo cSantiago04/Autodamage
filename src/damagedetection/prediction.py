@@ -1,0 +1,56 @@
+"""
+prediction.py
+Prediction for a single image - damage detection
+Call load_model() once at startup, then predict_damage() per request.
+"""
+
+import torch
+from PIL import Image
+import torchvision.transforms.functional as F
+
+from src.damagedetection.train import build_model
+
+
+_model = None
+_category_names = None
+_device = None
+
+
+def load_model(checkpoint_path="models/damage_detector/maskrcnn_cardd_best.pth", num_classes=7, nms_thresh=0.3):
+    global _model, _category_names, _device
+
+    _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    _category_names = {1: "dent", 2: "scratch", 3: "crack", 4: "glass shatter",
+                        5: "lamp broken", 6: "tire flat"}
+
+    _model = build_model(num_classes)
+    _model.load_state_dict(torch.load(checkpoint_path, map_location=_device))
+    _model = _model.to(_device)
+    _model.roi_heads.nms_thresh = nms_thresh
+    _model.eval()
+
+    return _model
+
+
+def predict_damage(image: Image.Image, confidence_threshold=0.5):
+    """Given a PIL Image, returns detected damage instances above the confidence threshold."""
+    if _model is None:
+        raise RuntimeError("Model not loaded. Call load_model() first.")
+
+    img_tensor = F.to_tensor(image.convert("RGB")).to(_device)
+
+    with torch.no_grad():
+        prediction = _model([img_tensor])[0]
+
+    keep = prediction['scores'] > confidence_threshold
+
+    results = []
+    for box, label, score in zip(prediction['boxes'][keep], prediction['labels'][keep], prediction['scores'][keep]):
+        x1, y1, x2, y2 = box.tolist()
+        results.append({
+            "damage_type": _category_names[label.item()],
+            "confidence": round(score.item(), 4),
+            "bbox": {"x1": round(x1, 1), "y1": round(y1, 1), "x2": round(x2, 1), "y2": round(y2, 1)}
+        })
+
+    return results
