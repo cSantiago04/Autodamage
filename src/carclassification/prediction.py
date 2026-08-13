@@ -6,7 +6,9 @@ Call load_model() once, then predict_car() per request
 
 import torch
 from PIL import Image
+import torchvision
 import torchvision.transforms as transforms
+import torchvision.transforms.functional as F
 
 from src.carclassification.train import build_model
 from src.carclassification.data_loader import load_class_names
@@ -15,7 +17,9 @@ _model = None
 _class_names = None 
 _device = None
 
-def load_model(checkpoint_path="models/classifier/resnet50_stanford_cars_best.pth", devkit_path="data/carclassificationdataset1/car_devkit/devkit"):
+
+def load_model(checkpoint_path="models/classifier/resnet50_stanford_cars_best.pth",
+               devkit_path="data/carclassificationdataset1/car_devkit/devkit"):
     global _model, _class_names, _device
 
     _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -30,7 +34,9 @@ def load_model(checkpoint_path="models/classifier/resnet50_stanford_cars_best.pt
 
 
 def predict_car(image: Image.Image, top_k=3):
-    """Given a PIL Image, returns the top-k predicted car classes with confidence scores.
+    """
+    Given a PIL Image (assumed to already be cropped/framed appropriately
+    by the caller), returns the top-k predicted car classes.
     """
     if _model is None:
         raise RuntimeError("Model not loaded. Call load_model() first.")
