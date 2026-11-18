@@ -18,3 +18,7 @@ desktop.ini
 
 #Model checkpoints
 models/
+#Debug/scratch outputs
+debug_*.jpg
+*_output.jpg
+results/

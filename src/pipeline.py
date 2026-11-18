@@ -58,19 +58,3 @@ def analyze_image(image: Image.Image):
         "car": car_results,
         "damage": damage_results,
     }
-
-
-
-"""TEMP"""
-def analyze_image(image: Image.Image):
-    damage_results = predict_damage(image)
-    print(f"Original image size: {image.size}")
-    cropped_image = crop_to_damaged_car(image, damage_results)
-    print(f"Cropped image size: {cropped_image.size}")
-    cropped_image.save("debug_cropped.jpg")
-    car_results = predict_car(cropped_image)
-
-    return {
-        "car": car_results,
-        "damage": damage_results,
-    }
