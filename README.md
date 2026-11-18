@@ -41,10 +41,15 @@ Autodamage/
 │   │   ├── data_loader.py                 # Stanford Cars parsing + DataLoaders
 │   │   ├── train.py                       # ResNet-50 training loop
 │   │   └── evaluate.py                    # Test set evaluation + confusion matrix
-│   └── damagedetection/
-│       ├── data_loader.py # Parses CarDD COCO annotations, builds DataLoaders
-│       ├── train.py # Model definition + training loop, saves best checkpoint
-│       └── evaluate.py # Test set evaluation
+│   ├── damagedetection/
+│   │   ├── data_loader.py                 # Parses CarDD COCO annotations, builds DataLoaders
+│   │   ├── train.py                       # Model definition + training loop, saves best checkpoint
+│   │   └── evaluate.py                    # Test set evaluation
+│   ├── gemma/
+│   │   ├── client.py                      # Ollama client for Gemma 4 (image + JSON-schema output)
+│   │   ├── eval_car_classification.py     # Zero-shot Gemma vs. ResNet on the Stanford Cars test split
+│   │   └── describe_damage.py             # Mask R-CNN + Gemma: vehicle, damaged part, severity
+│   └── pipeline.py                        # Damage detection -> car classification
 ├── .gitignore
 ├── README.md
 └── requirements.txt
@@ -103,3 +108,17 @@ CarDD, 10 epochs, fixed LR, Val_Loss = 0.6055 | Test_Loss = 0.5758
 -Occasional damage-type confusion on similar categories, such scratches near headlights being misclassified as "lamp broken"  
 -False-postive detections on undamaged areas (especially true for flat tire classifications)  
 -Further improvement and tuning is planned
+
+## Stage 3 (in progress): Gemma 4 Evaluation
+Testing whether a general vision-language model (Gemma 4, run locally via Ollama) can replace or complement the custom models, especially for part + severity labels that CarDD doesn't provide.
+### Setup
+1. Install Ollama: https://ollama.com/download
+2. `ollama pull gemma4:e4b` (fits a 12GB GPU; try `gemma4:12b` for comparison)
+### Run (from repo root)
+```
+python -m src.gemma.eval_car_classification --mode closed --limit 200
+python -m src.gemma.eval_car_classification --mode open --limit 200
+python -m src.gemma.describe_damage "data/Test Images"
+```
+### Results
+TBD
