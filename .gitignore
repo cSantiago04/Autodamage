@@ -22,3 +22,6 @@ models/
 debug_*.jpg
 *_output.jpg
 results/
+
+#Pytest
+.pytest_cache/

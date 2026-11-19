@@ -1,0 +1,151 @@
+{
+  "_note": "Rough US ballpark assumptions to get a first version working. NOT sourced data - calibrate against real repair quotes before trusting the numbers. Money in USD, time in labor hours. Each [low, high] pair is a range; the estimate's low end uses every low value and the high end uses every high value.",
+
+  "labor_rate_per_hour": [60, 130],
+  "paint_materials_per_refinish_hour": [30, 50],
+
+  "vehicle_class": {
+    "standard": {"parts_multiplier": 1.0, "labor_multiplier": 1.0},
+    "luxury":   {"parts_multiplier": 1.6, "labor_multiplier": 1.15},
+    "exotic":   {"parts_multiplier": 3.5, "labor_multiplier": 1.4}
+  },
+  "luxury_makes": ["acura", "alfa romeo", "audi", "bmw", "cadillac", "genesis", "infiniti", "jaguar", "land rover", "lexus", "lincoln", "maserati", "mercedes-benz", "mercedes", "porsche", "tesla", "volvo"],
+  "exotic_makes": ["aston martin", "bentley", "bugatti", "ferrari", "lamborghini", "mclaren", "rolls-royce", "spyker"],
+
+  "pdr_flat_cost": {"minor": [75, 150], "moderate": [150, 400]},
+
+  "parts": {
+    "bumper": {
+      "aliases": ["bumper", "bumper cover", "fascia"],
+      "painted": true,
+      "repair_hours": {"minor": [1, 2], "moderate": [2, 3.5], "severe": [3, 5]},
+      "refinish_hours": [2, 3],
+      "replace_part_cost": [150, 700],
+      "replace_labor_hours": [1.5, 3]
+    },
+    "hood": {
+      "aliases": ["hood", "bonnet"],
+      "painted": true,
+      "repair_hours": {"minor": [1, 2], "moderate": [2, 4], "severe": [4, 6]},
+      "refinish_hours": [2.5, 3.5],
+      "replace_part_cost": [200, 1000],
+      "replace_labor_hours": [0.8, 1.5]
+    },
+    "fender": {
+      "aliases": ["fender", "wing"],
+      "painted": true,
+      "repair_hours": {"minor": [1, 2], "moderate": [2, 4], "severe": [4, 6]},
+      "refinish_hours": [2, 3],
+      "replace_part_cost": [100, 600],
+      "replace_labor_hours": [1.5, 2.5]
+    },
+    "door": {
+      "aliases": ["door"],
+      "painted": true,
+      "repair_hours": {"minor": [1, 2], "moderate": [2.5, 4.5], "severe": [4, 7]},
+      "refinish_hours": [2.5, 3.5],
+      "replace_part_cost": [300, 1500],
+      "replace_labor_hours": [2.5, 4]
+    },
+    "quarter_panel": {
+      "aliases": ["quarter panel", "quarter", "rear fender"],
+      "painted": true,
+      "repair_hours": {"minor": [1.5, 3], "moderate": [3, 6], "severe": [6, 10]},
+      "refinish_hours": [2.5, 3.5],
+      "replace_part_cost": [300, 1200],
+      "replace_labor_hours": [8, 15]
+    },
+    "trunk_lid": {
+      "aliases": ["trunk", "trunk lid", "decklid", "deck lid", "tailgate", "liftgate", "hatch"],
+      "painted": true,
+      "repair_hours": {"minor": [1, 2], "moderate": [2, 4], "severe": [4, 6]},
+      "refinish_hours": [2, 3],
+      "replace_part_cost": [200, 900],
+      "replace_labor_hours": [1, 2]
+    },
+    "roof": {
+      "aliases": ["roof"],
+      "painted": true,
+      "repair_hours": {"minor": [1.5, 3], "moderate": [3, 6], "severe": [6, 10]},
+      "refinish_hours": [3, 4],
+      "replace_part_cost": [400, 1500],
+      "replace_labor_hours": [10, 18]
+    },
+    "rocker_panel": {
+      "aliases": ["rocker", "rocker panel", "side skirt", "sill"],
+      "painted": true,
+      "repair_hours": {"minor": [1, 2], "moderate": [2, 4], "severe": [4, 6]},
+      "refinish_hours": [1, 1.5],
+      "replace_part_cost": [80, 400],
+      "replace_labor_hours": [4, 8]
+    },
+    "side_mirror": {
+      "aliases": ["mirror", "side mirror", "wing mirror"],
+      "painted": true,
+      "repair_hours": {"minor": [0.5, 1]},
+      "refinish_hours": [0.5, 1],
+      "replace_part_cost": [60, 500],
+      "replace_labor_hours": [0.5, 1]
+    },
+    "grille": {
+      "aliases": ["grille", "grill"],
+      "painted": false,
+      "replace_part_cost": [80, 600],
+      "replace_labor_hours": [0.5, 1]
+    },
+    "headlight": {
+      "aliases": ["headlight", "headlamp", "head light", "head lamp"],
+      "painted": false,
+      "repair_hours": {"minor": [0.5, 1]},
+      "replace_part_cost": [100, 1200],
+      "replace_labor_hours": [0.5, 1.5]
+    },
+    "taillight": {
+      "aliases": ["taillight", "tail light", "taillamp", "tail lamp", "brake light"],
+      "painted": false,
+      "replace_part_cost": [60, 500],
+      "replace_labor_hours": [0.3, 1]
+    },
+    "fog_light": {
+      "aliases": ["fog light", "fog lamp", "foglight"],
+      "painted": false,
+      "replace_part_cost": [30, 200],
+      "replace_labor_hours": [0.3, 0.8]
+    },
+    "windshield": {
+      "aliases": ["windshield", "windscreen", "front glass"],
+      "painted": false,
+      "flat_repair_cost": {"minor": [50, 150]},
+      "replace_part_cost": [250, 1000],
+      "replace_labor_hours": [0, 0],
+      "note": "Replacement price is all-in. Cars with lane-keep cameras may also need ADAS calibration (+$150-400)."
+    },
+    "side_window": {
+      "aliases": ["side window", "door glass", "window"],
+      "painted": false,
+      "replace_part_cost": [150, 450],
+      "replace_labor_hours": [0, 0]
+    },
+    "rear_window": {
+      "aliases": ["rear window", "back glass", "rear glass", "rear windshield", "back window"],
+      "painted": false,
+      "replace_part_cost": [250, 800],
+      "replace_labor_hours": [0, 0]
+    },
+    "tire": {
+      "aliases": ["tire", "tyre"],
+      "painted": false,
+      "flat_repair_cost": {"minor": [20, 50]},
+      "replace_part_cost": [100, 350],
+      "replace_labor_hours": [0, 0],
+      "note": "Replacement is per tire, mounted and balanced."
+    },
+    "wheel": {
+      "aliases": ["wheel", "rim", "alloy"],
+      "painted": false,
+      "flat_repair_cost": {"minor": [75, 200], "moderate": [150, 300]},
+      "replace_part_cost": [200, 1000],
+      "replace_labor_hours": [0, 0]
+    }
+  }
+}

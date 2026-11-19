@@ -48,8 +48,13 @@ Autodamage/
 │   ├── gemma/
 │   │   ├── client.py                      # Ollama client for Gemma 4 (image + JSON-schema output)
 │   │   ├── eval_car_classification.py     # Zero-shot Gemma vs. ResNet on the Stanford Cars test split
-│   │   └── describe_damage.py             # Mask R-CNN + Gemma: vehicle, damaged part, severity
+│   │   └── describe_damage.py             # Mask R-CNN + Gemma: vehicle, damaged part, severity (+ --estimate)
+│   ├── costestimation/
+│   │   ├── cost_tables.json               # Editable labor hours, rates, part prices (rough assumptions)
+│   │   └── estimator.py                   # Rules-based damage list -> repair cost range
 │   └── pipeline.py                        # Damage detection -> car classification
+├── tests/
+│   └── test_estimator.py                  # pytest tests for the cost estimator
 ├── .gitignore
 ├── README.md
 └── requirements.txt
@@ -109,7 +114,7 @@ CarDD, 10 epochs, fixed LR, Val_Loss = 0.6055 | Test_Loss = 0.5758
 -False-postive detections on undamaged areas (especially true for flat tire classifications)  
 -Further improvement and tuning is planned
 
-## Stage 3 (in progress): Gemma 4 Evaluation
+## Gemma 4 Evaluation (in progress)
 Testing whether a general vision-language model (Gemma 4, run locally via Ollama) can replace or complement the custom models, especially for part + severity labels that CarDD doesn't provide.
 ### Setup
 1. Install Ollama: https://ollama.com/download
@@ -121,4 +126,22 @@ python -m src.gemma.eval_car_classification --mode open --limit 200
 python -m src.gemma.describe_damage "data/Test Images"
 ```
 ### Results
-TBD
+Preliminary, closed-set (pick from the 196 Stanford Cars classes), gemma4:e4b zero-shot, 189/200 test images: ~32% vs. 84.37% for the fine-tuned ResNet-50. The fine-tuned classifier is far better at exact make/model/year on this dataset. Open-set run (make / model / year scored separately) still to do.
+
+## Stage 3 (in progress): Cost Estimation
+Turns the damage list (part + damage type + severity + likely repair) into a low/high repair cost range.
+### Approach
+-No public dataset of labeled repair costs exists, so v1 is rules-based, structured like a real body-shop estimate: labor hours x labor rate + parts + paint materials (billed per refinish hour), with flat prices for paintless dent repair, windshield chips, tire plugs, etc.  
+-Free-text part names are mapped to ~18 canonical parts (e.g. "driver front door" -> door, front-left)  
+-Multiple damages on one panel are merged into one repair at the worst severity (the panel is painted once)  
+-Repair action comes from Gemma's `likely_repair` when given, otherwise a default by damage type + severity  
+-Luxury/exotic makes scale part and labor costs  
+-Every number is a [low, high] range, so the output is always a range  
+### Caveat
+The numbers in `src/costestimation/cost_tables.json` are rough ballpark assumptions, **not sourced data**. They need calibrating against real repair quotes. Edit the JSON to change them; no code changes needed.
+### Run
+```
+python -m src.costestimation.estimator                              # demo estimate
+python -m src.gemma.describe_damage "data/Test Images" --estimate   # photo -> damage -> cost
+python -m pytest tests/
+```

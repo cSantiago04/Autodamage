@@ -78,6 +78,7 @@ def main():
     parser.add_argument("path", help="image file or folder of images")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--no-detector", action="store_true", help="skip Mask R-CNN hints")
+    parser.add_argument("--estimate", action="store_true", help="also print a repair cost estimate")
     args = parser.parse_args()
 
     check_server(args.model)
@@ -100,6 +101,10 @@ def main():
         if detections:
             print(f"Mask R-CNN: {[d['damage_type'] for d in detections]}")
         print(json.dumps(result, indent=2))
+        if args.estimate:
+            from src.costestimation.estimator import estimate_repair, format_estimate
+            print("\n--- Cost estimate ---")
+            print(format_estimate(estimate_repair(result["damages"], vehicle=result["vehicle"])))
 
 
 if __name__ == "__main__":
