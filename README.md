@@ -52,9 +52,9 @@ Autodamage/
 │   │   ├── prediction.py                  # Single-image damage prediction (boxes, optional masks)
 │   │   ├── convert_carparts.py            # Carparts-seg YOLO polygons -> COCO, 12 merged part classes
 │   │   ├── part_prediction.py             # Single-image car-part segmentation
-│   │   ├── severity.py                    # Damage -> part matching (mask overlap) + severity rules
+│   │   ├── repair_action.py               # Damage -> part matching (mask overlap) + repair-action rules
 │   │   ├── label_severity.py              # Labeling tool: hand-label CarDD damage severity
-│   │   └── evaluate_severity.py           # Rules vs. hand labels (+ threshold grid search)
+│   │   └── evaluate_repair_action.py      # Rules vs. hand severity labels (+ cutoff grid search)
 │   ├── gemma/
 │   │   ├── client.py                      # Ollama client for Gemma 4 (image + JSON-schema output)
 │   │   ├── eval_car_classification.py     # Zero-shot Gemma vs. ResNet on the Stanford Cars test split
@@ -63,11 +63,11 @@ Autodamage/
 │   ├── costestimation/
 │   │   ├── cost_tables.json               # Editable labor hours, rates, part prices (rough assumptions)
 │   │   └── estimator.py                   # Rules-based damage list -> repair cost range
-│   └── pipeline.py                        # VIN + damage -> vehicle -> parts -> severity
+│   └── pipeline.py                        # VIN + damage -> vehicle -> parts -> repair action
 ├── tests/
 │   ├── test_estimator.py                  # pytest tests for the cost estimator
 │   ├── test_vin_decoder.py                # pytest tests for VIN validation/decoding
-│   └── test_severity.py                   # pytest tests for part matching + severity rules
+│   └── test_repair_action.py              # pytest tests for part matching + repair-action rules
 ├── labels/
 │   └── severity_labels.csv                # Hand severity labels for CarDD test damages
 ├── .gitignore
@@ -144,16 +144,22 @@ Glass shatter and flat tires are reliable; dents, scratches and especially crack
 -False-postive detections on undamaged areas (especially true for flat tire classifications)  
 -Further improvement and tuning is planned
 
-## Stage 2b (in progress): Part Detection + Severity
-CarDD labels damage type but not *which part* is damaged or *how badly*, and the cost stage needs both.
+## Stage 2b (in progress): Part Detection + Repair Action
+CarDD labels damage type but not *which part* is damaged, and the cost stage needs the part and the likely repair.
 ### Part detection
 -Dataset: Ultralytics Carparts-seg (https://docs.ultralytics.com/datasets/segment/carparts-seg), 3,833 images, converted to COCO with left/right variants merged into 12 classes (front/back bumper, hood, trunk, front/back door, front/back light, front/back glass, mirror, wheel)  
 -Model: Mask R-CNN, same training code as the damage detector (`python -m src.damagedetection.train --data-root data/carpartsseg --img-dir-pattern "images/{split}" --checkpoint models/part_detector/maskrcnn_carparts_best.pth --epochs 15`)  
 -Known gaps: undamaged whole-car photos (CarDD is mostly close-ups), and no fender / quarter panel / roof / rocker classes. Planned fix: add the Humans in the Loop "Car Parts and Car Damages" dataset (CC0, damaged cars)  
-### Severity
--Each damage mask is matched to the part mask it overlaps most  
--Rules (v1): glass shatter / lamp broken -> severe, tire flat -> moderate; dent / scratch / crack graded by the fraction of the part covered (falls back to fraction of the image if no part matched). Thresholds live at the top of `src/damagedetection/severity.py`  
--Measured against ~100 hand-labeled CarDD test damages: `python -m src.damagedetection.label_severity`, then `python -m src.damagedetection.evaluate_severity --search`  
+### Repair action
+No dataset labels severity, and the cost stage doesn't need an abstract severity anyway: it needs the repair. So each damage goes straight to an action, using the same names as the cost estimator:
+-Each damage mask is matched to the part mask it overlaps most; **extent** = fraction of that part the damage covers  
+-Glass shatter / lamp broken -> replace; flat tire -> repair (plug)  
+-Crack or dent on glass or a light -> replace  
+-Dent: extent < 5% -> paintless dent repair, < 20% -> repair and refinish, else replace  
+-Scratch: < 25% -> refinish only, else repair and refinish (never replace)  
+-Crack: < 10% -> repair and refinish, else replace  
+-No part matched -> same idea using the fraction of the image  
+Rules live at the top of `src/damagedetection/repair_action.py`. A sanity check against 100 hand severity labels (`labels/severity_labels.csv`; refinish/PDR ~ minor, repair ~ moderate, replace ~ severe): `python -m src.damagedetection.evaluate_repair_action --search`
 ### Results
 TBD
 

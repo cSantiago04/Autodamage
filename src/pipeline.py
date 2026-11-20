@@ -7,7 +7,7 @@ Orchestrates the full analysis pipeline:
   3. Vehicle detection (COCO-pretrained Faster R-CNN): find the vehicle that contains
      the damage and drop detections on other cars
   4. Part segmentation (Mask R-CNN, trained on Carparts-seg)
-  5. Match each damage to its part and rate severity (src/damagedetection/severity.py)
+  5. Match each damage to its part and choose the repair action (src/damagedetection/repair_action.py)
 """
 
 from PIL import Image
@@ -16,7 +16,7 @@ from src.carclassification import vehicle_detector as detector
 from src.carclassification.vin_decoder import decode_vin
 from src.damagedetection import part_prediction
 from src.damagedetection.prediction import load_model as load_damage_model, predict_damage
-from src.damagedetection.severity import assess
+from src.damagedetection.repair_action import assess
 
 _loaded = False
 _car_identifier = None
@@ -69,7 +69,7 @@ def suggest_vehicle(crop: Image.Image):
 def analyze_image(image: Image.Image, vin=None):
     """
     Full pipeline. Returns the vehicle (from the VIN and/or a photo-based suggestion),
-    the target vehicle box, and each damage with its part and severity.
+    the target vehicle box, and each damage with its part, extent, and repair action.
     """
     if not _loaded:
         raise RuntimeError("Models not loaded. Call load_models() first.")
