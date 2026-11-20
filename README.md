@@ -161,7 +161,16 @@ No dataset labels severity, and the cost stage doesn't need an abstract severity
 -No part matched -> same idea using the fraction of the image  
 Rules live at the top of `src/damagedetection/repair_action.py`. A sanity check against 100 hand severity labels (`labels/severity_labels.csv`; refinish/PDR ~ minor, repair ~ moderate, replace ~ severe): `python -m src.damagedetection.evaluate_repair_action --search`
 ### Results
-TBD
+**Part model** (15 epochs, best = epoch 8 by val loss), Carparts-seg test set: mask AP 0.671, AP50 0.884. Strong on bumpers, hood, doors, windshield (mask AP 0.72-0.84); weak on wheels (0.28, many unlabeled wheels in the dataset count as false positives).
+
+**On CarDD damage photos** the picture is different:
+-Only 46/100 hand-labeled damages land on a detected part; the rest fall back to image extent. CarDD is mostly close-ups, and the part model was trained on whole, undamaged cars  
+-Matched parts were almost all hood/bumper; no doors were matched  
+-On real accident photos the *damaged* parts themselves often go undetected (a crushed bumper doesn't look like the undamaged bumpers it learned), and damage near a boundary can be assigned to the wrong part (e.g. a hood dent assigned to the windshield)  
+
+**Repair-action rules vs. 100 hand labels:** 56% level agreement (3 levels). Fixed-type rules are reliable (glass/lamp 100%, tire 80%); dent 40%, crack 45%, scratch 53%. Most misses under-call severe damage: the rules see only the outlined damage, while the repair depends on the state of the whole panel. A grid search reached 67% but with degenerate cutoffs (overfit to these labels), so the hand-set rules were kept.
+
+**Next:** retrain the part model with damaged-car data (Humans in the Loop dataset: damaged cars, adds fender / quarter panel classes) so damaged parts are recognized; then revisit the rules.
 
 ## Gemma 4 Evaluation (in progress)
 Testing whether a general vision-language model (Gemma 4, run locally via Ollama) can replace or complement the custom models, especially for part + severity labels that CarDD doesn't provide.
