@@ -153,13 +153,18 @@ def collate_fn(batch):
 
     return tuple(zip(*batch))
 
-def get_dataloaders(data_root="data/CarDD_release/CarDD_release/CarDD_COCO", batch_size=4):
+def get_dataloaders(data_root="data/CarDD_release/CarDD_release/CarDD_COCO", batch_size=4,
+                    img_dir_pattern="{split}2017"):
     """
-    Builds train/val/test DataLoaders for damage detection on CarDD.
+    Builds train/val/test DataLoaders for any COCO-format segmentation dataset laid out as
+    <data_root>/annotations/instances_<split>2017.json (CarDD's layout). Used for both
+    damage detection (CarDD) and car-part segmentation (Carparts-seg).
 
     Args:
         data_root (str): Root directory of the dataset.
         batch_size (int): Number of samples in each batch.
+        img_dir_pattern (str): Image folder for each split, relative to data_root.
+            "{split}2017" for CarDD, "images/{split}" for Carparts-seg.
 
     Returns:
         tuple: (train_loader, val_loader, test_loader, category_names) where each loader is a DataLoader and category_names is a dictionary mapping category IDs to names.
@@ -170,15 +175,10 @@ def get_dataloaders(data_root="data/CarDD_release/CarDD_release/CarDD_COCO", bat
     val_coco = load_coco_annotations(os.path.join(annotations_dir, "instances_val2017.json"))
     test_coco = load_coco_annotations(os.path.join(annotations_dir, "instances_test2017.json"))
 
-    train_dataset = DamageDataset(
-        train_coco, os.path.join(data_root, "train2017"), transform=get_transform(train=True)
-    )
-    val_dataset = DamageDataset(
-        val_coco, os.path.join(data_root, "val2017"), transform=get_transform(train=False)
-    )
-    test_dataset = DamageDataset(
-        test_coco, os.path.join(data_root, "test2017"), transform=get_transform(train=False)
-    )
+    img_dir = lambda split: os.path.join(data_root, img_dir_pattern.format(split=split))
+    train_dataset = DamageDataset(train_coco, img_dir("train"), transform=get_transform(train=True))
+    val_dataset = DamageDataset(val_coco, img_dir("val"), transform=get_transform(train=False))
+    test_dataset = DamageDataset(test_coco, img_dir("test"), transform=get_transform(train=False))
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)

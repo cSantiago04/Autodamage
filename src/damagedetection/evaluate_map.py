@@ -11,6 +11,7 @@ Also reports precision/recall at the confidence threshold the app actually uses
 Usage (from repo root):
     python -m src.damagedetection.evaluate_map
     python -m src.damagedetection.evaluate_map --checkpoint models/damage_detector/other.pth
+    python -m src.damagedetection.evaluate_map --data-root data/carpartsseg --img-dir-pattern "images/{split}"         --checkpoint models/part_detector/maskrcnn_carparts_best.pth          # part segmenter
 """
 
 import argparse
@@ -129,10 +130,12 @@ def main():
     parser.add_argument("--nms-thresh", type=float, default=0.3)
     parser.add_argument("--score-thresh", type=float, default=0.5, help="app's confidence cutoff for P/R")
     parser.add_argument("--rerun", action="store_true", help="ignore cached detections")
+    parser.add_argument("--data-root", default=DATA_ROOT)
+    parser.add_argument("--img-dir-pattern", default="{split}2017")
     args = parser.parse_args()
 
-    ann_path = os.path.join(DATA_ROOT, "annotations", f"instances_{args.split}2017.json")
-    img_dir = os.path.join(DATA_ROOT, f"{args.split}2017")
+    ann_path = os.path.join(args.data_root, "annotations", f"instances_{args.split}2017.json")
+    img_dir = os.path.join(args.data_root, args.img_dir_pattern.format(split=args.split))
     with contextlib.redirect_stdout(io.StringIO()):
         coco_gt = COCO(ann_path)
 

@@ -1,7 +1,14 @@
 """
 train.py
-Trains a Mask R-CNN damage detector on CarDD dataset and saves the best checkpoint to disk.
+Trains a Mask R-CNN on a COCO-format segmentation dataset and saves the best checkpoint.
+Used for the damage detector (CarDD, default) and the car-part segmenter (Carparts-seg).
+
+Usage (from repo root):
+    python -m src.damagedetection.train                       # CarDD damage detector
+    python -m src.damagedetection.train --data-root data/carpartsseg --img-dir-pattern "images/{split}"         --checkpoint models/part_detector/maskrcnn_carparts_best.pth
 """
+
+import argparse
 
 import os 
 import time
@@ -80,13 +87,22 @@ def train(
     lr_gamma=0.1,
     data_root="data/CarDD_release/CarDD_release/CarDD_COCO",
     checkpoint_path="models/damage_detector/maskrcnn_cardd_best.pth",
+    img_dir_pattern="{split}2017",
+    max_train_batches=None,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     train_loader, val_loader, test_loader, category_names = get_dataloaders(
-        data_root=data_root, batch_size=batch_size
+        data_root=data_root, batch_size=batch_size, img_dir_pattern=img_dir_pattern
     )
+    if max_train_batches:  # quick smoke test on a small subset
+        from torch.utils.data import DataLoader, Subset
+        n = max_train_batches * batch_size
+        train_loader = DataLoader(Subset(train_loader.dataset, range(n)), batch_size=batch_size,
+                                  shuffle=True, collate_fn=train_loader.collate_fn)
+        val_loader = DataLoader(Subset(val_loader.dataset, range(n)), batch_size=batch_size,
+                                shuffle=False, collate_fn=val_loader.collate_fn)
     num_classes = len(category_names) + 1  # +1 for background
 
     model = build_model(num_classes).to(device)
@@ -119,4 +135,16 @@ def train(
 
 
 if __name__ == "__main__":
-    train()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-root", default="data/CarDD_release/CarDD_release/CarDD_COCO")
+    parser.add_argument("--img-dir-pattern", default="{split}2017")
+    parser.add_argument("--checkpoint", default="models/damage_detector/maskrcnn_cardd_best.pth")
+    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--lr", type=float, default=0.005)
+    parser.add_argument("--lr-step-size", type=int, default=7)
+    parser.add_argument("--max-train-batches", type=int, default=None, help="smoke test on a subset")
+    a = parser.parse_args()
+    train(num_epochs=a.epochs, batch_size=a.batch_size, learning_rate=a.lr, lr_step_size=a.lr_step_size,
+          data_root=a.data_root, checkpoint_path=a.checkpoint, img_dir_pattern=a.img_dir_pattern,
+          max_train_batches=a.max_train_batches)
