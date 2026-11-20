@@ -42,11 +42,13 @@ Autodamage/
 │   │   ├── train.py                       # ResNet-50 training loop
 │   │   ├── evaluate.py                    # Test set evaluation + confusion matrix
 │   │   ├── prediction.py                  # Single-image ResNet prediction
+│   │   ├── vin_decoder.py                 # VIN -> year/make/model/trim via NHTSA vPIC
 │   │   └── vehicle_detector.py            # COCO-pretrained Faster R-CNN: find + crop the damaged vehicle
 │   ├── damagedetection/
 │   │   ├── data_loader.py                 # Parses CarDD COCO annotations, builds DataLoaders
 │   │   ├── train.py                       # Model definition + training loop, saves best checkpoint
 │   │   ├── evaluate.py                    # Test set evaluation
+│   │   ├── evaluate_map.py                # COCO mAP (box + mask), per class, precision/recall at a cutoff
 │   │   └── prediction.py                  # Single-image Mask R-CNN prediction
 │   ├── gemma/
 │   │   ├── client.py                      # Ollama client for Gemma 4 (image + JSON-schema output)
@@ -58,7 +60,8 @@ Autodamage/
 │   │   └── estimator.py                   # Rules-based damage list -> repair cost range
 │   └── pipeline.py                        # Damage detection -> vehicle crop -> car identification
 ├── tests/
-│   └── test_estimator.py                  # pytest tests for the cost estimator
+│   ├── test_estimator.py                  # pytest tests for the cost estimator
+│   └── test_vin_decoder.py                # pytest tests for VIN validation/decoding
 ├── .gitignore
 ├── README.md
 └── requirements.txt
@@ -113,6 +116,21 @@ Citation:
 CarDD, 10 epochs, fixed LR, Val_Loss = 0.6055 | Test_Loss = 0.5758  
 (Best Checkpoint) CarDD, 15 epochs, LR scheduler, Val_loss = 0.5772 | Test_Loss  = 0.5450
 
+### COCO Evaluation (CarDD test set, 374 images)
+`python -m src.damagedetection.evaluate_map`
+
+| Class | Box AP | Mask AP | Mask AP50 | Precision @0.5 conf | Recall @0.5 conf |
+|---|---|---|---|---|---|
+| dent | 0.300 | 0.317 | 0.632 | 0.50 | 0.73 |
+| scratch | 0.302 | 0.275 | 0.618 | 0.49 | 0.73 |
+| crack | 0.221 | 0.121 | 0.341 | 0.42 | 0.63 |
+| glass shatter | 0.822 | 0.852 | 0.981 | 0.87 | 0.94 |
+| lamp broken | 0.555 | 0.597 | 0.754 | 0.55 | 0.86 |
+| tire flat | 0.795 | 0.828 | 0.904 | 0.64 | 0.94 |
+| **All** | **0.499** | **0.498** | **0.705** | | |
+
+Glass shatter and flat tires are reliable; dents, scratches and especially cracks are the weak classes. At the app's 0.5 confidence cutoff about half of dent/scratch detections don't match a labeled damage (some of that is ambiguous extents, e.g. one long scratch predicted as two). Raising the cutoff to 0.8 lifts dent/scratch precision to ~0.70 at ~0.55 recall.
+
 ### Error Analysis
 -Occasional damage-type confusion on similar categories, such scratches near headlights being misclassified as "lamp broken"  
 -False-postive detections on undamaged areas (especially true for flat tire classifications)  
@@ -130,7 +148,17 @@ python -m src.gemma.eval_car_classification --mode open --limit 200
 python -m src.gemma.describe_damage "data/Test Images"
 ```
 ### Results
-Preliminary, closed-set (pick from the 196 Stanford Cars classes), gemma4:e4b zero-shot, 189/200 test images: ~32% vs. 84.37% for the fine-tuned ResNet-50. The fine-tuned classifier is far better at exact make/model/year on this dataset. Open-set run (make / model / year scored separately) still to do.
+Zero-shot gemma4:e4b on 200 images of the same Stanford Cars test split:
+
+| Mode | Metric | Gemma 4 e4b | ResNet-50 (fine-tuned) |
+|---|---|---|---|
+| Closed (pick 1 of 196 classes) | exact class | 31.0% | 84.37% |
+| Open (name it freely) | make | 61.5% | - |
+| Open | make + model | 19.0% | - |
+| Open | year within 1 | 21.0% | - |
+
+On 3 real damaged-car photos (Civic Si coupe, Altima coupe, Acura RSX, none of which are in Stanford Cars) the ResNet got 0/3; Gemma and Qwen2.5-VL got 3/3 makes but only 1/3 models.
+**Decision:** identifying the exact car from a photo isn't reliable enough for pricing, so the app gets the vehicle from its **VIN** (decoded with NHTSA's free vPIC API, `src/carclassification/vin_decoder.py`). A vision model can still pre-fill a guess for the user to confirm.
 
 ## Stage 3 (in progress): Cost Estimation
 Turns the damage list (part + damage type + severity + likely repair) into a low/high repair cost range.
