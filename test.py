@@ -1,10 +1,12 @@
 """Quick smoke test of the full pipeline on one image (run from repo root)."""
-from PIL import Image
-from src.pipeline import load_models, analyze_image
+import json
 
-load_models(car_identifier="resnet")  # or an Ollama model, e.g. "qwen2.5vl:7b"
+from PIL import Image
+
+from src.pipeline import analyze_image, load_models
+
+load_models()  # optionally car_identifier="gemma4:e4b" to also suggest the car from the photo
 
 img = Image.open("data/Test Images/Test3.jpg")
-
-result = analyze_image(img)
-print(result)
+result = analyze_image(img)  # pass vin="..." to decode the vehicle
+print(json.dumps(result, indent=2, default=str))

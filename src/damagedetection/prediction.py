@@ -32,8 +32,12 @@ def load_model(checkpoint_path="models/damage_detector/maskrcnn_cardd_best.pth",
     return _model
 
 
-def predict_damage(image: Image.Image, confidence_threshold=0.5):
-    """Given a PIL Image, returns detected damage instances above the confidence threshold."""
+def predict_damage(image: Image.Image, confidence_threshold=0.5, return_masks=False):
+    """
+    Given a PIL Image, returns detected damage instances above the confidence threshold.
+    With return_masks=True each result also has "mask": a boolean numpy array (H, W),
+    needed to work out which car part the damage is on.
+    """
     if _model is None:
         raise RuntimeError("Model not loaded. Call load_model() first.")
 
@@ -43,14 +47,19 @@ def predict_damage(image: Image.Image, confidence_threshold=0.5):
         prediction = _model([img_tensor])[0]
 
     keep = prediction['scores'] > confidence_threshold
+    masks = (prediction['masks'][keep][:, 0] > 0.5).cpu().numpy() if return_masks else None
 
     results = []
-    for box, label, score in zip(prediction['boxes'][keep], prediction['labels'][keep], prediction['scores'][keep]):
+    for i, (box, label, score) in enumerate(zip(prediction['boxes'][keep], prediction['labels'][keep],
+                                                prediction['scores'][keep])):
         x1, y1, x2, y2 = box.tolist()
-        results.append({
+        r = {
             "damage_type": _category_names[label.item()],
             "confidence": round(score.item(), 4),
             "bbox": {"x1": round(x1, 1), "y1": round(y1, 1), "x2": round(x2, 1), "y2": round(y2, 1)}
-        })
+        }
+        if return_masks:
+            r["mask"] = masks[i]
+        results.append(r)
 
     return results

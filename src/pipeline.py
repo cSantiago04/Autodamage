@@ -1,37 +1,45 @@
 """
 pipeline.py
 Orchestrates the full analysis pipeline:
-  1. Damage detection (Mask R-CNN, trained on CarDD)
-  2. Vehicle detection (COCO-pretrained Faster R-CNN) -> pick the vehicle that
-     contains the damage, crop to it
-  3. Keep only damage that lies on that vehicle (drops detections on other cars)
-  4. Identify the vehicle from the crop, either with the ResNet-50 Stanford Cars
-     classifier or an Ollama vision model (e.g. "gemma4:e4b", "qwen2.5vl:7b")
+  1. Vehicle: decoded from the VIN (NHTSA vPIC) when one is given. Optionally, an
+     identifier suggests the car from the photo ("resnet" or an Ollama vision model)
+  2. Damage detection (Mask R-CNN, trained on CarDD), with masks
+  3. Vehicle detection (COCO-pretrained Faster R-CNN): find the vehicle that contains
+     the damage and drop detections on other cars
+  4. Part segmentation (Mask R-CNN, trained on Carparts-seg)
+  5. Match each damage to its part and rate severity (src/damagedetection/severity.py)
 """
 
 from PIL import Image
 
 from src.carclassification import vehicle_detector as detector
+from src.carclassification.vin_decoder import decode_vin
+from src.damagedetection import part_prediction
 from src.damagedetection.prediction import load_model as load_damage_model, predict_damage
+from src.damagedetection.severity import assess
 
+_loaded = False
 _car_identifier = None
 
 
-def load_models(car_identifier="resnet"):
+def load_models(car_identifier=None):
     """
     Call once at API startup.
-    car_identifier: "resnet" for the Stanford Cars classifier, or an Ollama model name.
+    car_identifier: None (VIN only), "resnet" (Stanford Cars classifier), or an Ollama
+    model name, used to suggest the car from the photo.
     """
-    global _car_identifier
+    global _loaded, _car_identifier
     _car_identifier = car_identifier
     load_damage_model()
     detector.load_model()
+    part_prediction.load_model()
     if car_identifier == "resnet":
         from src.carclassification.prediction import load_model as load_classifier
         load_classifier()
-    else:
+    elif car_identifier:
         from src.gemma.client import check_server
         check_server(car_identifier)
+    _loaded = True
 
 
 def damage_on_vehicle(damage, vehicle, min_overlap=0.5):
@@ -50,7 +58,7 @@ def damage_on_vehicle(damage, vehicle, min_overlap=0.5):
     return kept
 
 
-def identify_vehicle(crop: Image.Image):
+def suggest_vehicle(crop: Image.Image):
     if _car_identifier == "resnet":
         from src.carclassification.prediction import predict_car
         return {"source": "resnet", "top_k": predict_car(crop)}
@@ -58,19 +66,26 @@ def identify_vehicle(crop: Image.Image):
     return {"source": _car_identifier, **identify_car(crop, model=_car_identifier)}
 
 
-def analyze_image(image: Image.Image):
-    """Full pipeline. Returns the target vehicle box, its identification, and its damage."""
-    if _car_identifier is None:
+def analyze_image(image: Image.Image, vin=None):
+    """
+    Full pipeline. Returns the vehicle (from the VIN and/or a photo-based suggestion),
+    the target vehicle box, and each damage with its part and severity.
+    """
+    if not _loaded:
         raise RuntimeError("Models not loaded. Call load_models() first.")
 
-    damage = predict_damage(image)
+    damage = predict_damage(image, return_masks=True)
     vehicles = detector.detect_vehicles(image)
     target = detector.select_target_vehicle(vehicles, damage)
-    crop = detector.crop_vehicle(image, target)
+    damage = damage_on_vehicle(damage, target)
+    parts = part_prediction.predict_parts(image)
 
-    return {
+    result = {
+        "vehicle": decode_vin(vin) if vin else None,
+        "vehicle_suggestion": suggest_vehicle(detector.crop_vehicle(image, target)) if _car_identifier else None,
         "vehicle_found": target is not None,
         "vehicle_box": target,
-        "car": identify_vehicle(crop),
-        "damage": damage_on_vehicle(damage, target),
+        "parts_detected": sorted({p["part"] for p in parts}),
+        "damage": assess(damage, parts),
     }
+    return result
