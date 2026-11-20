@@ -40,19 +40,23 @@ Autodamage/
 │   ├── carclassification/
 │   │   ├── data_loader.py                 # Stanford Cars parsing + DataLoaders
 │   │   ├── train.py                       # ResNet-50 training loop
-│   │   └── evaluate.py                    # Test set evaluation + confusion matrix
+│   │   ├── evaluate.py                    # Test set evaluation + confusion matrix
+│   │   ├── prediction.py                  # Single-image ResNet prediction
+│   │   └── vehicle_detector.py            # COCO-pretrained Faster R-CNN: find + crop the damaged vehicle
 │   ├── damagedetection/
 │   │   ├── data_loader.py                 # Parses CarDD COCO annotations, builds DataLoaders
 │   │   ├── train.py                       # Model definition + training loop, saves best checkpoint
-│   │   └── evaluate.py                    # Test set evaluation
+│   │   ├── evaluate.py                    # Test set evaluation
+│   │   └── prediction.py                  # Single-image Mask R-CNN prediction
 │   ├── gemma/
 │   │   ├── client.py                      # Ollama client for Gemma 4 (image + JSON-schema output)
 │   │   ├── eval_car_classification.py     # Zero-shot Gemma vs. ResNet on the Stanford Cars test split
+│   │   ├── identify_car.py                # Open-set make/model/trim/year from a vehicle crop
 │   │   └── describe_damage.py             # Mask R-CNN + Gemma: vehicle, damaged part, severity (+ --estimate)
 │   ├── costestimation/
 │   │   ├── cost_tables.json               # Editable labor hours, rates, part prices (rough assumptions)
 │   │   └── estimator.py                   # Rules-based damage list -> repair cost range
-│   └── pipeline.py                        # Damage detection -> car classification
+│   └── pipeline.py                        # Damage detection -> vehicle crop -> car identification
 ├── tests/
 │   └── test_estimator.py                  # pytest tests for the cost estimator
 ├── .gitignore

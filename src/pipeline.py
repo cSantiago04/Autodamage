@@ -11,7 +11,7 @@ Orchestrates the full analysis pipeline:
 
 from PIL import Image
 
-from src.cardetection import detector
+from src.carclassification import vehicle_detector as detector
 from src.damagedetection.prediction import load_model as load_damage_model, predict_damage
 
 _car_identifier = None

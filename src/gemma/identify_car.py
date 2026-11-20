@@ -64,7 +64,7 @@ def main():
 
     check_server(args.model)
     if not args.no_crop:
-        from src.cardetection import detector
+        from src.carclassification import vehicle_detector as detector
         detector.load_model()
 
     if os.path.isdir(args.path):
