@@ -4,6 +4,9 @@ Car-part segmentation for a single image (Mask R-CNN trained on Carparts-seg).
 Call load_model() once, then predict_parts() per image.
 """
 
+import json
+import os
+
 import torch
 import torchvision.transforms.functional as F
 from PIL import Image
@@ -13,13 +16,20 @@ from src.damagedetection.train import build_model
 
 _model = None
 _device = None
-_names = {i + 1: n for i, n in enumerate(PART_CLASSES)}
+_names = None
+
+DEFAULT_CHECKPOINT = "models/part_detector/maskrcnn_carparts_best.pth"
 
 
-def load_model(checkpoint_path="models/part_detector/maskrcnn_carparts_best.pth"):
-    global _model, _device
+def load_model(checkpoint_path=DEFAULT_CHECKPOINT):
+    """Class names come from <checkpoint>.classes.json (written by train.py); falls back to
+    the Carparts-seg classes for checkpoints trained before that file existed."""
+    global _model, _device, _names
+    classes_path = os.path.splitext(checkpoint_path)[0] + ".classes.json"
+    classes = json.load(open(classes_path)) if os.path.exists(classes_path) else PART_CLASSES
+    _names = {i + 1: n for i, n in enumerate(classes)}
     _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    _model = build_model(num_classes=len(PART_CLASSES) + 1)
+    _model = build_model(num_classes=len(classes) + 1)
     _model.load_state_dict(torch.load(checkpoint_path, map_location=_device))
     _model = _model.to(_device).eval()
     return _model

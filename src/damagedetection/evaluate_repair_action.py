@@ -37,14 +37,14 @@ LABELS = "labels/severity_labels.csv"
 LEVELS = ["minor", "moderate", "severe"]
 
 
-def collect_features(split="test"):
+def collect_features(split="test", part_checkpoint=None):
     """Per labeled damage: type, label level, matched part, extent, image fraction."""
     with open(LABELS, newline="") as f:
         rows = [r for r in csv.DictReader(f) if r["severity"] in LEVELS]
     with contextlib.redirect_stdout(io.StringIO()):
         coco = COCO(os.path.join(DATA_ROOT, "annotations", f"instances_{split}2017.json"))
 
-    part_prediction.load_model()
+    part_prediction.load_model(part_checkpoint or part_prediction.DEFAULT_CHECKPOINT)
     parts_cache, feats = {}, []
     for r in tqdm(rows, desc="Matching damage to parts"):
         ann = coco.loadAnns(int(r["ann_id"]))[0]
@@ -108,9 +108,10 @@ def grid_search(feats):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--search", action="store_true", help="grid-search extent cutoffs")
+    parser.add_argument("--part-checkpoint", default=None)
     args = parser.parse_args()
 
-    feats = collect_features()
+    feats = collect_features(part_checkpoint=args.part_checkpoint)
     print(f"\nPart matched for {sum(f['part'] is not None for f in feats)}/{len(feats)} damages "
           f"(rest fall back to image extent)")
     print("Matched parts:", dict(Counter(f["part"] for f in feats if f["part"])))

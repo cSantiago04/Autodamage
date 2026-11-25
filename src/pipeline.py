@@ -22,7 +22,7 @@ _loaded = False
 _car_identifier = None
 
 
-def load_models(car_identifier=None):
+def load_models(car_identifier=None, part_checkpoint=None):
     """
     Call once at API startup.
     car_identifier: None (VIN only), "resnet" (Stanford Cars classifier), or an Ollama
@@ -32,7 +32,7 @@ def load_models(car_identifier=None):
     _car_identifier = car_identifier
     load_damage_model()
     detector.load_model()
-    part_prediction.load_model()
+    part_prediction.load_model(part_checkpoint or part_prediction.DEFAULT_CHECKPOINT)
     if car_identifier == "resnet":
         from src.carclassification.prediction import load_model as load_classifier
         load_classifier()

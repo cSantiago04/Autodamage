@@ -28,7 +28,8 @@ ACTION_LEVEL = {REFINISH: 0, PDR: 0, TIRE_REPAIR: 1, REPAIR: 1, REPLACE: 2}
 FIXED_ACTION = {"glass shatter": REPLACE, "lamp broken": REPLACE, "tire flat": TIRE_REPAIR}
 
 # Unpainted parts (glass, lights) can't be dent-pulled or repainted: a crack or dent means replace
-UNPAINTED_PARTS = {"front_glass", "back_glass", "front_light", "back_light"}
+UNPAINTED_PARTS = {"front_glass", "back_glass", "front_light", "back_light",          # Carparts-seg names
+                   "windshield", "side_window", "headlight", "taillight", "grille"}  # HITL names
 
 # Extent = fraction of the PART covered by the damage. Each list is (upper bound, action),
 # checked in order; the last entry has no upper bound.
