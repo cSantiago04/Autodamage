@@ -91,12 +91,14 @@ def train(
     img_dir_pattern="{split}2017",
     max_train_batches=None,
     init_from=None,
+    include_empty=False,
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
     train_loader, val_loader, test_loader, category_names = get_dataloaders(
-        data_root=data_root, batch_size=batch_size, img_dir_pattern=img_dir_pattern
+        data_root=data_root, batch_size=batch_size, img_dir_pattern=img_dir_pattern,
+        include_empty=include_empty
     )
     if max_train_batches:  # quick smoke test on a small subset
         from torch.utils.data import DataLoader, Subset
@@ -161,7 +163,9 @@ if __name__ == "__main__":
     parser.add_argument("--lr-step-size", type=int, default=7)
     parser.add_argument("--max-train-batches", type=int, default=None, help="smoke test on a subset")
     parser.add_argument("--init-from", default=None, help="checkpoint to start from (heads that don't fit are reset)")
+    parser.add_argument("--include-empty", action="store_true", help="train on images without annotations (negatives)")
     a = parser.parse_args()
     train(num_epochs=a.epochs, batch_size=a.batch_size, learning_rate=a.lr, lr_step_size=a.lr_step_size,
           data_root=a.data_root, checkpoint_path=a.checkpoint, img_dir_pattern=a.img_dir_pattern,
-          max_train_batches=a.max_train_batches, init_from=a.init_from)
+          max_train_batches=a.max_train_batches, init_from=a.init_from,
+          include_empty=a.include_empty)

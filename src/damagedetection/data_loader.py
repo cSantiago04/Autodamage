@@ -71,12 +71,13 @@ class DamageDataset(Dataset):
     Returns (image, target) pairs, where target is a dictionary containing 'boxes', 'labels', and 'masks', 'image_idx', 'area', 'iscrowd'.
     """
 
-    def __init__(self, coco_data, img_dir, transform=None):
+    def __init__(self, coco_data, img_dir, transform=None, include_empty=False):
         """
         Args:
             coco_data (dict): COCO-format annotations loaded from a JSON file.
             img_dir (str): Directory containing the images.
             transform (callable, optional): A function/transform to apply to the images and targets.
+            include_empty (bool): Keep images with no annotations (negative examples).
         """
         self.img_dir = img_dir
         self.transform = transform
@@ -88,7 +89,8 @@ class DamageDataset(Dataset):
         for anno in coco_data['annotations']:
             self.annotations_by_image.setdefault(anno['image_id'], []).append(anno)
 
-        self.image_ids = [img_id for img_id in self.images if img_id in self.annotations_by_image]
+        self.image_ids = [img_id for img_id in self.images
+                          if include_empty or img_id in self.annotations_by_image]
 
     def __len__(self):
         """
@@ -108,7 +110,7 @@ class DamageDataset(Dataset):
         """
         image_id = self.image_ids[idx]
         img_info = self.images[image_id]
-        annos = self.annotations_by_image[image_id]
+        annos = self.annotations_by_image.get(image_id, [])
 
         img_path = os.path.join(self.img_dir, img_info['file_name'])
         img = Image.open(img_path).convert("RGB")
@@ -123,6 +125,10 @@ class DamageDataset(Dataset):
             masks.append(polygon_to_mask(anno['segmentation'], height, width))
             areas.append(anno['area'])
             iscrowd.append(anno.get('iscrowd', 0))
+
+        if not annos:  # negative example: empty targets with the right shapes
+            boxes = torch.zeros((0, 4), dtype=torch.float32)
+            masks = np.zeros((0, height, width), dtype=np.uint8)
 
         target = {
             'boxes': tv_tensors.BoundingBoxes(boxes, format="XYXY", canvas_size=(height, width)),
@@ -154,7 +160,7 @@ def collate_fn(batch):
     return tuple(zip(*batch))
 
 def get_dataloaders(data_root="data/CarDD_release/CarDD_release/CarDD_COCO", batch_size=4,
-                    img_dir_pattern="{split}2017"):
+                    img_dir_pattern="{split}2017", include_empty=False):
     """
     Builds train/val/test DataLoaders for any COCO-format segmentation dataset laid out as
     <data_root>/annotations/instances_<split>2017.json (CarDD's layout). Used for both
@@ -165,6 +171,7 @@ def get_dataloaders(data_root="data/CarDD_release/CarDD_release/CarDD_COCO", bat
         batch_size (int): Number of samples in each batch.
         img_dir_pattern (str): Image folder for each split, relative to data_root.
             "{split}2017" for CarDD, "images/{split}" for Carparts-seg.
+        include_empty (bool): Keep images without annotations (negatives) in train/val/test.
 
     Returns:
         tuple: (train_loader, val_loader, test_loader, category_names) where each loader is a DataLoader and category_names is a dictionary mapping category IDs to names.
@@ -176,9 +183,12 @@ def get_dataloaders(data_root="data/CarDD_release/CarDD_release/CarDD_COCO", bat
     test_coco = load_coco_annotations(os.path.join(annotations_dir, "instances_test2017.json"))
 
     img_dir = lambda split: os.path.join(data_root, img_dir_pattern.format(split=split))
-    train_dataset = DamageDataset(train_coco, img_dir("train"), transform=get_transform(train=True))
-    val_dataset = DamageDataset(val_coco, img_dir("val"), transform=get_transform(train=False))
-    test_dataset = DamageDataset(test_coco, img_dir("test"), transform=get_transform(train=False))
+    train_dataset = DamageDataset(train_coco, img_dir("train"), transform=get_transform(train=True),
+                                  include_empty=include_empty)
+    val_dataset = DamageDataset(val_coco, img_dir("val"), transform=get_transform(train=False),
+                                include_empty=include_empty)
+    test_dataset = DamageDataset(test_coco, img_dir("test"), transform=get_transform(train=False),
+                                 include_empty=include_empty)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, collate_fn=collate_fn)

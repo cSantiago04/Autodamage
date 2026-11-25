@@ -29,13 +29,18 @@ from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from tqdm import tqdm
 
+from src.damagedetection.prediction import class_names_for
 from src.damagedetection.train import build_model
 
 DATA_ROOT = "data/CarDD_release/CarDD_release/CarDD_COCO"
 
 
-def run_inference(model, coco, img_dir, device):
-    """Returns COCO-format detection results (bbox + segm) for every test image."""
+def run_inference(model, coco, img_dir, device, label_to_cat=None):
+    """
+    Returns COCO-format detection results (bbox + segm) for every test image.
+    label_to_cat maps model label ids to ground-truth category ids (None = identity);
+    labels mapped to None are dropped.
+    """
     bbox_results, segm_results = [], []
     model.eval()
     with torch.no_grad():
@@ -48,7 +53,10 @@ def run_inference(model, coco, img_dir, device):
             for box, label, score, m in zip(pred["boxes"].cpu(), pred["labels"].cpu(),
                                             pred["scores"].cpu(), masks):
                 x1, y1, x2, y2 = box.tolist()
-                common = {"image_id": img_id, "category_id": int(label), "score": float(score)}
+                cat = int(label) if label_to_cat is None else label_to_cat.get(int(label))
+                if cat is None:
+                    continue
+                common = {"image_id": img_id, "category_id": cat, "score": float(score)}
                 bbox_results.append({**common, "bbox": [x1, y1, x2 - x1, y2 - y1]})
                 rle = mask_utils.encode(np.asfortranarray(m))
                 rle["counts"] = rle["counts"].decode("ascii")
@@ -126,7 +134,8 @@ def precision_recall_at_threshold(coco_gt, bbox_results, score_thresh=0.5, iou_t
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", default="models/damage_detector/maskrcnn_cardd_best.pth")
-    parser.add_argument("--split", default="test", choices=["val", "test"])
+    parser.add_argument("--split", default="test",
+                        help="annotation file instances_<split>2017.json, e.g. val, test, test_hitl")
     parser.add_argument("--nms-thresh", type=float, default=0.3)
     parser.add_argument("--score-thresh", type=float, default=0.5, help="app's confidence cutoff for P/R")
     parser.add_argument("--rerun", action="store_true", help="ignore cached detections")
@@ -140,7 +149,15 @@ def main():
         coco_gt = COCO(ann_path)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = build_model(num_classes=len(coco_gt.getCatIds()) + 1)
+    # Map the model's classes onto the ground truth's by name, so a model trained with a
+    # different label set (e.g. the original CarDD model on the unified dataset) can be scored
+    from src.damagedetection.build_damage_dataset import TO_UNIFIED
+    model_classes = class_names_for(args.checkpoint)
+    gt_ids = {c["name"]: c["id"] for c in coco_gt.loadCats(coco_gt.getCatIds())}
+    label_to_cat = {}
+    for i, n in enumerate(model_classes, start=1):
+        label_to_cat[i] = gt_ids.get(n, gt_ids.get(TO_UNIFIED.get(n)))
+    model = build_model(num_classes=len(model_classes) + 1)
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
     model.roi_heads.nms_thresh = args.nms_thresh
     model.to(device)
@@ -152,9 +169,18 @@ def main():
         with open(cache) as f:
             bbox_results, segm_results = json.load(f)
     else:
-        bbox_results, segm_results = run_inference(model, coco_gt, img_dir, device)
+        bbox_results, segm_results = run_inference(model, coco_gt, img_dir, device, label_to_cat)
         with open(cache, "w") as f:
             json.dump([bbox_results, segm_results], f)
+
+    n_imgs = len(coco_gt.getImgIds())
+    flagged = {d["image_id"] for d in bbox_results if d["score"] >= args.score_thresh}
+    n_dets = sum(d["score"] >= args.score_thresh for d in bbox_results)
+    print(f"\nImages with any damage >= {args.score_thresh}: {len(flagged)}/{n_imgs} "
+          f"({n_dets} detections, {n_dets / max(n_imgs, 1):.2f} per image)")
+    if not coco_gt.getAnnIds():  # negatives only: nothing to compute AP against
+        print("(no ground-truth damage in this split: every detection above is a false positive)")
+        return
 
     box = coco_eval(coco_gt, bbox_results, "bbox")
     segm = coco_eval(coco_gt, segm_results, "segm")

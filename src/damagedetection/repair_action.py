@@ -25,7 +25,8 @@ REFINISH, PDR, REPAIR, REPLACE, TIRE_REPAIR = (
 ACTION_LEVEL = {REFINISH: 0, PDR: 0, TIRE_REPAIR: 1, REPAIR: 1, REPLACE: 2}
 
 # Damage types whose repair doesn't depend on size
-FIXED_ACTION = {"glass shatter": REPLACE, "lamp broken": REPLACE, "tire flat": TIRE_REPAIR}
+FIXED_ACTION = {"glass shatter": REPLACE, "lamp broken": REPLACE, "tire flat": TIRE_REPAIR,   # CarDD names
+                "broken": REPLACE, "missing part": REPLACE, "paint damage": REFINISH}           # unified names
 
 # Unpainted parts (glass, lights) can't be dent-pulled or repainted: a crack or dent means replace
 UNPAINTED_PARTS = {"front_glass", "back_glass", "front_light", "back_light",          # Carparts-seg names
@@ -43,7 +44,7 @@ EXTENT_RULES = {
 # ones): a small dent on a panel that took a real hit still means replacing it. Broken
 # lamps / shattered glass, or many separate damages, are the clearest signs of that.
 # Escalating dent/scratch/crack one level in that case raised agreement from 56% to 69%.
-COLLISION_TYPES = {"lamp broken", "glass shatter"}
+COLLISION_TYPES = {"lamp broken", "glass shatter", "broken", "missing part"}
 COLLISION_MIN_DAMAGES = 4
 ESCALATE = {REFINISH: REPAIR, PDR: REPAIR, REPAIR: REPLACE, REPLACE: REPLACE}
 
