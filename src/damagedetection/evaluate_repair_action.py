@@ -30,7 +30,7 @@ from tqdm import tqdm
 
 from src.damagedetection import part_prediction
 from src.damagedetection.repair_action import (ACTION_LEVEL, EXTENT_RULES, PDR, REFINISH, REPAIR, REPLACE,
-                                               assign_part, choose_action)
+                                               assign_part, choose_action, collision_context)
 
 DATA_ROOT = "data/CarDD_release/CarDD_release/CarDD_COCO"
 LABELS = "labels/severity_labels.csv"
@@ -53,14 +53,17 @@ def collect_features(split="test"):
             parts_cache[ann["image_id"]] = part_prediction.predict_parts(img)
         mask = coco.annToMask(ann).astype(bool)
         match = assign_part(mask, parts_cache[ann["image_id"]])
+        image_types = [coco.loadCats(a["category_id"])[0]["name"]
+                       for a in coco.loadAnns(coco.getAnnIds(imgIds=ann["image_id"]))]
         feats.append({"type": r["damage_type"], "label": LEVELS.index(r["severity"]), "part": match["part"],
-                      "extent": match["extent"], "image_fraction": mask.sum() / mask.size})
+                      "extent": match["extent"], "image_fraction": mask.sum() / mask.size,
+                      "collision": collision_context(image_types)})
     return feats
 
 
-def predict(feats, extent_rules=None):
-    return [choose_action(f["type"], f["part"], f["extent"], f["image_fraction"], extent_rules)
-            for f in feats]
+def predict(feats, extent_rules=None, use_collision=True):
+    return [choose_action(f["type"], f["part"], f["extent"], f["image_fraction"], extent_rules,
+                          collision=use_collision and f["collision"]) for f in feats]
 
 
 def accuracy(feats, preds):
@@ -112,7 +115,8 @@ def main():
           f"(rest fall back to image extent)")
     print("Matched parts:", dict(Counter(f["part"] for f in feats if f["part"])))
 
-    report(feats, predict(feats), "Current rules")
+    report(feats, predict(feats, use_collision=False), "Extent rules only (no collision context)")
+    report(feats, predict(feats), "Current rules (with collision context)")
     if args.search:
         best = grid_search(feats)
         report(feats, predict(feats, best), "Grid-searched cutoffs (optimistic: tuned on the same labels)")

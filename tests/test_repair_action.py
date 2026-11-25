@@ -82,3 +82,31 @@ def test_assess_end_to_end():
     assert out[0]["repair_action"] == REPLACE  # 1500/5000 = 30% of the door
     assert out[1]["repair_action"] == REPLACE
     assert "mask" not in out[0]
+
+
+def test_collision_context_signals():
+    from src.damagedetection.repair_action import collision_context
+    assert collision_context(["dent", "lamp broken"])
+    assert collision_context(["glass shatter"])
+    assert collision_context(["dent", "scratch", "dent", "crack"])  # 4 separate damages
+    assert not collision_context(["dent", "scratch"])
+
+
+def test_collision_escalates_size_based_actions_one_level():
+    assert choose_action("dent", "hood", extent=0.02, collision=True) == (REPAIR, "part extent + collision")
+    assert choose_action("dent", "hood", extent=0.10, collision=True)[0] == REPLACE
+    assert choose_action("scratch", "hood", extent=0.05, collision=True)[0] == REPAIR
+    assert choose_action("crack", image_fraction=0.01, collision=True) == (REPLACE, "image extent + collision")
+
+
+def test_collision_leaves_fixed_actions_alone():
+    assert choose_action("tire flat", collision=True) == (TIRE_REPAIR, "damage type")
+    assert choose_action("lamp broken", collision=True) == (REPLACE, "damage type")
+
+
+def test_assess_applies_collision_context_to_whole_photo():
+    small_dent = {"damage_type": "dent", "confidence": 0.9, "bbox": None, "mask": box_mask(0, 0, 10, 10)}
+    lamp = {"damage_type": "lamp broken", "confidence": 0.9, "bbox": None, "mask": box_mask(60, 60, 70, 70)}
+    assert assess([small_dent], [DOOR])[0]["repair_action"] == PDR
+    assert assess([small_dent, lamp], [DOOR, BUMPER])[0]["repair_action"] == REPAIR
+    assert assess([small_dent, lamp], [DOOR, BUMPER], use_collision_context=False)[0]["repair_action"] == PDR

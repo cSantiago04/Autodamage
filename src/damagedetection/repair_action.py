@@ -3,7 +3,9 @@ repair_action.py
 Combines the damage detector and the part segmenter into what the cost stage needs:
   1. assign_part(): which car part each damage is on (overlap of the two masks)
   2. choose_action(): the likely repair, from damage type + part + extent
-     (fraction of the part the damage covers)
+     (fraction of the part the damage covers), escalated one level when the photo
+     shows signs of a real collision
+
   3. assess(): runs both over all detections in an image
 
 Actions use the same names as the cost estimator (src/costestimation/estimator.py):
@@ -35,6 +37,15 @@ EXTENT_RULES = {
     "scratch": [(0.25, REFINISH), (None, REPAIR)],   # scratches rarely justify replacing a panel
     "crack":   [(0.10, REPAIR), (None, REPLACE)],    # a crack always needs at least a repair
 }
+# Collision context. On the hand labels, the outlined damage's own size barely predicts
+# how serious the repair is (severe damages had a *smaller* median outline than moderate
+# ones): a small dent on a panel that took a real hit still means replacing it. Broken
+# lamps / shattered glass, or many separate damages, are the clearest signs of that.
+# Escalating dent/scratch/crack one level in that case raised agreement from 56% to 69%.
+COLLISION_TYPES = {"lamp broken", "glass shatter"}
+COLLISION_MIN_DAMAGES = 4
+ESCALATE = {REFINISH: REPAIR, PDR: REPAIR, REPAIR: REPLACE, REPLACE: REPLACE}
+
 # Fallback when no part was matched: fraction of the whole IMAGE (coarser: depends on
 # how close the photo was taken)
 IMAGE_EXTENT_RULES = {
@@ -87,12 +98,26 @@ def _apply(rules, value):
             return action
 
 
+def collision_context(damage_types):
+    """True if the photo shows signs of a real impact: a broken lamp / shattered glass,
+    or many separate damages."""
+    return any(t in COLLISION_TYPES for t in damage_types) or len(damage_types) >= COLLISION_MIN_DAMAGES
+
+
 def choose_action(damage_type, part=None, extent=None, image_fraction=None,
-                  extent_rules=None, image_extent_rules=None):
+                  extent_rules=None, image_extent_rules=None, collision=False):
     """
     Returns (action, basis). basis says what the decision was based on:
-    "damage type", "unpainted part", "part extent", "image extent", or "default".
+    "damage type", "unpainted part", "part extent", "image extent", or "default",
+    plus " + collision" when the action was escalated for collision context.
     """
+    action, basis = _base_action(damage_type, part, extent, image_fraction, extent_rules, image_extent_rules)
+    if collision and basis in ("part extent", "image extent", "default"):
+        return ESCALATE[action], basis + " + collision"
+    return action, basis
+
+
+def _base_action(damage_type, part, extent, image_fraction, extent_rules, image_extent_rules):
     extent_rules = extent_rules or EXTENT_RULES
     image_extent_rules = image_extent_rules or IMAGE_EXTENT_RULES
 
@@ -107,7 +132,7 @@ def choose_action(damage_type, part=None, extent=None, image_fraction=None,
     return REPAIR, "default"
 
 
-def assess(damages, parts, **rule_kwargs):
+def assess(damages, parts, use_collision_context=True, **rule_kwargs):
     """
     Args:
         damages: predict_damage(..., return_masks=True) output (each needs "mask").
@@ -116,13 +141,14 @@ def assess(damages, parts, **rule_kwargs):
     also_on, image_fraction, repair_action, action_basis. Masks are dropped so the
     result is JSON-friendly.
     """
+    collision = use_collision_context and collision_context([d["damage_type"] for d in damages])
     results = []
     for d in damages:
         mask = d["mask"]
         match = assign_part(mask, parts)
         image_fraction = float(mask.sum()) / mask.size
         action, basis = choose_action(d["damage_type"], match["part"], match["extent"], image_fraction,
-                                      **rule_kwargs)
+                                      collision=collision, **rule_kwargs)
         results.append({
             "damage_type": d["damage_type"],
             "confidence": d.get("confidence"),

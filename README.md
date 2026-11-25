@@ -159,6 +159,7 @@ No dataset labels severity, and the cost stage doesn't need an abstract severity
 -Scratch: < 25% -> refinish only, else repair and refinish (never replace)  
 -Crack: < 10% -> repair and refinish, else replace  
 -No part matched -> same idea using the fraction of the image  
+-**Collision context:** if the photo shows a broken lamp / shattered glass or 4+ separate damages, dent/scratch/crack actions go up one level. On the hand labels the outlined damage's own size barely predicts the repair (severe damages had a *smaller* median outline than moderate ones); a small dent on a panel that took a real hit still means replacement  
 Rules live at the top of `src/damagedetection/repair_action.py`. A sanity check against 100 hand severity labels (`labels/severity_labels.csv`; refinish/PDR ~ minor, repair ~ moderate, replace ~ severe): `python -m src.damagedetection.evaluate_repair_action --search`
 ### Results
 **Part model** (15 epochs, best = epoch 8 by val loss), Carparts-seg test set: mask AP 0.671, AP50 0.884. Strong on bumpers, hood, doors, windshield (mask AP 0.72-0.84); weak on wheels (0.28, many unlabeled wheels in the dataset count as false positives).
@@ -168,7 +169,7 @@ Rules live at the top of `src/damagedetection/repair_action.py`. A sanity check 
 -Matched parts were almost all hood/bumper; no doors were matched  
 -On real accident photos the *damaged* parts themselves often go undetected (a crushed bumper doesn't look like the undamaged bumpers it learned), and damage near a boundary can be assigned to the wrong part (e.g. a hood dent assigned to the windshield)  
 
-**Repair-action rules vs. 100 hand labels:** 56% level agreement (3 levels). Fixed-type rules are reliable (glass/lamp 100%, tire 80%); dent 40%, crack 45%, scratch 53%. Most misses under-call severe damage: the rules see only the outlined damage, while the repair depends on the state of the whole panel. A grid search reached 67% but with degenerate cutoffs (overfit to these labels), so the hand-set rules were kept.
+**Repair-action rules vs. 100 hand labels:** 56% level agreement (3 levels) with extent rules alone, **69% with collision context** (crack 45% -> 80%, scratch 53% -> 67%, dent 40% -> 47%; under-calls 34 -> 15, over-calls 10 -> 16). Extent-only details: Fixed-type rules are reliable (glass/lamp 100%, tire 80%); dent 40%, crack 45%, scratch 53%. Most misses under-call severe damage: the rules see only the outlined damage, while the repair depends on the state of the whole panel. A grid search reached 67% but with degenerate cutoffs (overfit to these labels), so the hand-set rules were kept.
 
 **Next:** retrain the part model with damaged-car data (Humans in the Loop dataset: damaged cars, adds fender / quarter panel classes) so damaged parts are recognized; then revisit the rules.
 
