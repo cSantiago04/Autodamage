@@ -23,6 +23,12 @@ Once I have structured data (Car ID + damage list + cost estimate), use an LLM t
 #### 5. Repair Shop Recommendation
 Use an API such as Google Places or Yelp filtered by location to find nearby body-shops/mechanics for actual repairs.
 
+## Demo
+A local web page for trying the pipeline on any photo: damage and parts drawn on the image, plus a table of damage -> part -> repair action (and the decoded vehicle if a VIN is entered).
+```
+python -m src.app            # then open http://127.0.0.1:7860
+```
+
 ## Current Repository Structure
 ```
 Autodamage/
@@ -63,6 +69,7 @@ Autodamage/
 │   ├── costestimation/
 │   │   ├── cost_tables.json               # Editable labor hours, rates, part prices (rough assumptions)
 │   │   └── estimator.py                   # Rules-based damage list -> repair cost range
+│   ├── app.py                             # Gradio demo page (local)
 │   └── pipeline.py                        # VIN + damage -> vehicle -> parts -> repair action
 ├── tests/
 │   ├── test_estimator.py                  # pytest tests for the cost estimator

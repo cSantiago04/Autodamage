@@ -66,15 +66,17 @@ def suggest_vehicle(crop: Image.Image):
     return {"source": _car_identifier, **identify_car(crop, model=_car_identifier)}
 
 
-def analyze_image(image: Image.Image, vin=None):
+def analyze_image(image: Image.Image, vin=None, damage_threshold=0.5, include_masks=False):
     """
     Full pipeline. Returns the vehicle (from the VIN and/or a photo-based suggestion),
     the target vehicle box, and each damage with its part, extent, and repair action.
+    include_masks=True also returns "damage_masks" (aligned with "damage") and "parts"
+    (with masks), for drawing; these aren't JSON-serializable.
     """
     if not _loaded:
         raise RuntimeError("Models not loaded. Call load_models() first.")
 
-    damage = predict_damage(image, return_masks=True)
+    damage = predict_damage(image, confidence_threshold=damage_threshold, return_masks=True)
     vehicles = detector.detect_vehicles(image)
     target = detector.select_target_vehicle(vehicles, damage)
     damage = damage_on_vehicle(damage, target)
@@ -88,4 +90,7 @@ def analyze_image(image: Image.Image, vin=None):
         "parts_detected": sorted({p["part"] for p in parts}),
         "damage": assess(damage, parts),
     }
+    if include_masks:
+        result["damage_masks"] = [d["mask"] for d in damage]
+        result["parts"] = parts
     return result
