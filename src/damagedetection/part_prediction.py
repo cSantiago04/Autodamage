@@ -1,12 +1,13 @@
 """
 part_prediction.py
-Car-part segmentation for a single image (Mask R-CNN trained on Carparts-seg).
+Car-part segmentation for a single image (Mask R-CNN: Carparts-seg, then fine-tuned on Humans in the Loop).
 Call load_model() once, then predict_parts() per image.
 """
 
 import json
 import os
 
+import numpy as np
 import torch
 import torchvision.transforms.functional as F
 from PIL import Image
@@ -18,7 +19,7 @@ _model = None
 _device = None
 _names = None
 
-DEFAULT_CHECKPOINT = "models/part_detector/maskrcnn_carparts_best.pth"
+DEFAULT_CHECKPOINT = "models/part_detector/maskrcnn_hitl_finetuned_best.pth"
 
 
 def load_model(checkpoint_path=DEFAULT_CHECKPOINT):
@@ -33,6 +34,27 @@ def load_model(checkpoint_path=DEFAULT_CHECKPOINT):
     _model.load_state_dict(torch.load(checkpoint_path, map_location=_device))
     _model = _model.to(_device).eval()
     return _model
+
+
+def suppress_duplicates(parts, iou_threshold=0.6):
+    """
+    Mask R-CNN suppresses overlaps only within a class, so one panel can come back as two
+    parts (e.g. "front_bumper" and "back_bumper" on the same bumper at night). A panel
+    has one identity: when two masks overlap heavily, keep the more confident one.
+    """
+    kept = []
+    for p in sorted(parts, key=lambda p: -p["confidence"]):
+        area = p["mask"].sum()
+        dup = False
+        for k in kept:
+            inter = np.logical_and(p["mask"], k["mask"]).sum()
+            union = area + k["mask"].sum() - inter
+            if union and inter / union >= iou_threshold:
+                dup = True
+                break
+        if not dup:
+            kept.append(p)
+    return kept
 
 
 def predict_parts(image: Image.Image, confidence_threshold=0.5):
@@ -55,4 +77,4 @@ def predict_parts(image: Image.Image, confidence_threshold=0.5):
             "bbox": {"x1": round(x1, 1), "y1": round(y1, 1), "x2": round(x2, 1), "y2": round(y2, 1)},
             "mask": masks[i],
         })
-    return results
+    return suppress_duplicates(results)

@@ -151,34 +151,47 @@ Glass shatter and flat tires are reliable; dents, scratches and especially crack
 -False-postive detections on undamaged areas (especially true for flat tire classifications)  
 -Further improvement and tuning is planned
 
-## Stage 2b (in progress): Part Detection + Repair Action
+## Stage 2b: Part Detection + Repair Action
 CarDD labels damage type but not *which part* is damaged, and the cost stage needs the part and the likely repair.
 ### Part detection
--Dataset: Ultralytics Carparts-seg (https://docs.ultralytics.com/datasets/segment/carparts-seg), 3,833 images, converted to COCO with left/right variants merged into 12 classes (front/back bumper, hood, trunk, front/back door, front/back light, front/back glass, mirror, wheel)  
--Model: Mask R-CNN, same training code as the damage detector (`python -m src.damagedetection.train --data-root data/carpartsseg --img-dir-pattern "images/{split}" --checkpoint models/part_detector/maskrcnn_carparts_best.pth --epochs 15`)  
--Known gaps: undamaged whole-car photos (CarDD is mostly close-ups), and no fender / quarter panel / roof / rocker classes. Planned fix: add the Humans in the Loop "Car Parts and Car Damages" dataset (CC0, damaged cars)  
+-**Stage 1:** Mask R-CNN trained on Ultralytics Carparts-seg (https://docs.ultralytics.com/datasets/segment/carparts-seg), 3,833 mostly undamaged whole-car photos, 12 merged part classes  
+-**Stage 2 (current model):** fine-tuned from that checkpoint on the Humans in the Loop "Car Parts and Car Damages" dataset (https://humansintheloop.org/resources/datasets/car-parts-and-car-damages-dataset/, CC0): 998 photos of damaged cars, 18 part classes including fender, quarter panel, rocker panel, roof, grille  
+-Note: in that download the folder names are swapped ("Car damages dataset" holds the part labels). 441 photos have both part and damage labels; 120 of them are held out as the test set  
+-Fine-tuning (not pooling the datasets) because Carparts-seg never labels fenders / quarter panels / side windows, so pooled training would call those "background" on half the photos  
+-Overlapping masks of different parts are de-duplicated (one panel, one name)  
+```
+python -m src.damagedetection.convert_hitl
+python -m src.damagedetection.train --data-root "data/Car parts and car damages dataset" --img-dir-pattern "Car damages dataset/File1/img" --checkpoint models/part_detector/maskrcnn_hitl_finetuned_best.pth --init-from models/part_detector/maskrcnn_carparts_best.pth --epochs 20
+python -m src.damagedetection.evaluate_part_matching --checkpoint models/part_detector/maskrcnn_hitl_finetuned_best.pth
+```
 ### Repair action
 No dataset labels severity, and the cost stage doesn't need an abstract severity anyway: it needs the repair. So each damage goes straight to an action, using the same names as the cost estimator:
 -Each damage mask is matched to the part mask it overlaps most; **extent** = fraction of that part the damage covers  
 -Glass shatter / lamp broken -> replace; flat tire -> repair (plug)  
--Crack or dent on glass or a light -> replace  
+-Crack or dent on glass, a light, or the grille -> replace  
 -Dent: extent < 5% -> paintless dent repair, < 20% -> repair and refinish, else replace  
--Scratch: < 25% -> refinish only, else repair and refinish (never replace)  
+-Scratch: < 25% -> refinish only, else repair and refinish  
 -Crack: < 10% -> repair and refinish, else replace  
 -No part matched -> same idea using the fraction of the image  
 -**Collision context:** if the photo shows a broken lamp / shattered glass or 4+ separate damages, dent/scratch/crack actions go up one level. On the hand labels the outlined damage's own size barely predicts the repair (severe damages had a *smaller* median outline than moderate ones); a small dent on a panel that took a real hit still means replacement  
-Rules live at the top of `src/damagedetection/repair_action.py`. A sanity check against 100 hand severity labels (`labels/severity_labels.csv`; refinish/PDR ~ minor, repair ~ moderate, replace ~ severe): `python -m src.damagedetection.evaluate_repair_action --search`
+
+Rules live at the top of `src/damagedetection/repair_action.py`. Sanity check against 100 hand severity labels (`labels/severity_labels.csv`, labeled by Claude from the images; refinish/PDR ~ minor, repair ~ moderate, replace ~ severe): `python -m src.damagedetection.evaluate_repair_action`
 ### Results
-**Part model** (15 epochs, best = epoch 8 by val loss), Carparts-seg test set: mask AP 0.671, AP50 0.884. Strong on bumpers, hood, doors, windshield (mask AP 0.72-0.84); weak on wheels (0.28, many unlabeled wheels in the dataset count as false positives).
+**Is each damage matched to the right part?** 1,413 labeled damages on the 120 held-out HITL photos (ground-truth damage masks):
 
-**On CarDD damage photos** the picture is different:
--Only 46/100 hand-labeled damages land on a detected part; the rest fall back to image extent. CarDD is mostly close-ups, and the part model was trained on whole, undamaged cars  
--Matched parts were almost all hood/bumper; no doors were matched  
--On real accident photos the *damaged* parts themselves often go undetected (a crushed bumper doesn't look like the undamaged bumpers it learned), and damage near a boundary can be assigned to the wrong part (e.g. a hood dent assigned to the windshield)  
+| Part model | Correct part | Wrong part | No part found |
+|---|---|---|---|
+| Carparts-seg only | 49.8% | 24.6% | 25.6% |
+| HITL, trained from COCO weights | 82.4% | 15.3% | 2.3% |
+| **Carparts-seg -> fine-tuned on HITL** | **88.0%** (87.5% with de-duplication) | 9.8% | 2.3% |
 
-**Repair-action rules vs. 100 hand labels:** 56% level agreement (3 levels) with extent rules alone, **69% with collision context** (crack 45% -> 80%, scratch 53% -> 67%, dent 40% -> 47%; under-calls 34 -> 15, over-calls 10 -> 16). Extent-only details: Fixed-type rules are reliable (glass/lamp 100%, tire 80%); dent 40%, crack 45%, scratch 53%. Most misses under-call severe damage: the rules see only the outlined damage, while the repair depends on the state of the whole panel. A grid search reached 67% but with degenerate cutoffs (overfit to these labels), so the hand-set rules were kept.
+Per part (fine-tuned): front bumper 94%, front door 92%, back bumper 92%, hood 90%, quarter panel 85%, fender 83% (0% before: no class), headlight 82%; weakest is back door 63% (confused with front door / quarter panel). Fine-tuning mostly helps doors: training from COCO weights confused front and back doors 106 times.
 
-**Next:** retrain the part model with damaged-car data (Humans in the Loop dataset: damaged cars, adds fender / quarter panel classes) so damaged parts are recognized; then revisit the rules.
+**On CarDD close-ups:** damages landing on a detected part went from 46/100 to 84/100.
+
+**Repair actions vs. 100 hand labels:** 56% with extent rules alone -> 69% with collision context -> **71%** with the fine-tuned part model (crack 80%, dent 60%, scratch 60%, lamp / glass 100%, tire 80%).
+
+**Remaining weak spot: the damage detector.** On real photos it still produces false positives on intact glass (a "dent" covering an undamaged windshield) and oversized masks, and misses some creases. Next: retrain/extend it (the HITL damage half adds "broken part" / "missing part" labels, direct replace signals CarDD lacks).
 
 ## Gemma 4 Evaluation (in progress)
 Testing whether a general vision-language model (Gemma 4, run locally via Ollama) can replace or complement the custom models, especially for part + severity labels that CarDD doesn't provide.
